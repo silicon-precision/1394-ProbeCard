@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    <style>
+        body {
+            background-color: lightblue;
+        }
+
+        #project { text-align: center; font-size:200%;}
+
+        .centerAlign {
+            font-weight: bold;
+            dominant-baseline: middle;
+            text-anchor: middle;
+        }
+        .blackStroke {
+            stroke: black;
+            stroke-width: 1;
+        }
+        .blueStroke {
+            stroke: blue;
+            stroke-width: 1;
+        }
+    </style>
+
+    <!-- jquery Library -->
+    <!--
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    -->
+    <script type="text/javascript" src="constants/jquery-3.4.1.min.js"></script>
+    <script type="text/javascript" src="constants/xlsx.full.min.js"></script>
+    <script>
+        const xmlns = "http://www.w3.org/2000/svg";
+
+        function getUrlParams() {
+            var params = {};
+            window.location.search.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(str, key, value) { params[key] = value; });
+            return params;
+        }
+
+//        var DUTs = [];              // DUT들에 대한 배열을 선언한다.
+//        $(document).ready(function(){
+        $(function(){
+            // window width & height.
+            console.log(`Window width = ${window.innerWidth}, height = ${window.innerHeight}`);
+
+            // 부모 윈도우의 요소를 read한다.
+//            var site = opener.document.getElementById('siteNumber').value;
+
+            // 부모 윈도우의 변수를 참조한다.
+//            maxDUTs = opener.maxDUTs;
+//            DutInfo = opener.DutInfo;
+
+            oParams = getUrlParams();
+            console.log(`oParams = ${JSON.stringify(oParams)}`);
+
+            var bytes = oParams.Bytes.split(',');
+
+            // SVG(Scalable Vector Graphics) 영역 생성하기.
+            var svg = document.createElementNS(xmlns, "svg");
+            var w = (bytes.length * 90) + 80;
+            var h = window.innerHeight - 80;
+            $(svg).attr({
+                id:'Canvas', align:'center', width:w, height:h
+            });
+            console.log(`svg width = ${w}, height = ${h}`);
+
+            var defs = document.createElementNS(xmlns, "defs");
+            var marker = document.createElementNS(xmlns, "marker");
+            $(marker).attr({
+                id:'Triangle', markerWidth:5, markerHeight:5, refX:1, refY:4, orient:'auto', viewBox:'0 0 8 8'
+            });
+
+            var path = document.createElementNS(xmlns, "path");
+            $(path).attr({ d:'M 0 0 L 9 4 L 0 8 z' });
+
+            marker.appendChild(path);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            document.getElementById("svgContainer").appendChild(svg);    // svgContainer에 추가.
+
+            TimingDraw(bytes);
+
+            $(window).blur(function() {
+                console.log('focus out');
+            });
+        });
+    </script>
+</head>
+
+<!--
+<body onload="CreateSVG()">
+-->
+<body>
+    <center>
+    <div id="project">
+        <b>SPI Command Timing</b>
+    </div>
+    <div id="svgContainer" name="container" align="center"></div>
+    </center>
+
+    <script language="javascript">
+        function toHexString(bytes) {
+            return bytes.map(function(byte) {
+                return '0x' + ('0' + (byte & 0xFF).toString(16).toUpperCase()).slice(-2);
+            }).join(' ')
+        }
+
+        function TimingDraw(bytes) {
+            var svg = document.getElementById("Canvas");
+            console.log(`bytes(${bytes.length}) = ${toHexString(bytes)}`);
+
+            var sx;        // x start.
+            var sy;        // y start.
+            var h = 50;         // line의 높이 : 50-pixel
+            var dh = 20;        // line간 간격 : 20-pixel
+            var clock = 10;     // clock length : 10-pixel.
+            var x;
+            var y;
+            var n;
+            var length;
+            var lineOfs = h + dh;
+
+            sx = 40;
+            sy = 50;
+
+            // Signal Name Display.
+            x = sx - 20;
+            y = sy + (h/2);
+            $(document.createElementNS(xmlns, 'text')).attr({
+                x:x, y:y, class:'centerAlign', fill:'black', 'font-size':16
+            }).text('SCLK').appendTo(svg);
+            y += lineOfs;
+            $(document.createElementNS(xmlns, 'text')).attr({
+                x:x, y:y, class:'centerAlign', fill:'black', 'font-size':16
+            }).text('SDI').appendTo(svg);
+            y += lineOfs;
+            $(document.createElementNS(xmlns, 'text')).attr({
+                x:x, y:y, class:'centerAlign', fill:'black', 'font-size':16
+            }).text('CSN').appendTo(svg);
+
+            // Signal Setup line display.
+            x = sx;     // 40
+            y = sy;     // 50
+            n = 2;          // setup time : 2-clock.
+            length = n * clock;
+            // SCLK line draw.
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x, y1:y, x2:x+length, y2:y, class:'blackStroke'
+            }).appendTo(svg);
+            // SDO line draw.
+            y = y + lineOfs;
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x, y1:y+(h/2), x2:x+length, y2:y+(h/2), class:'blackStroke'
+            }).appendTo(svg);
+            // CSN line draw.
+            y = y + lineOfs;
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x, y1:y, x2:x+length-5, y2:y, class:'blackStroke'
+            }).appendTo(svg);
+            console.log(`sx = ${sx}, sy = ${sy}, x = ${x}, y = ${y}`);
+
+
+            // vertical line과 nibble 값을 Display.
+            x = sx + (n * clock);
+            y = sy;
+
+//            sx = x;
+            for(var i=0; i<(bytes.length * 2); i++) {
+                if( i & 0x1 ) {
+                    val = bytes[i>>1] & 0x0F;
+                } else {
+                    val = (bytes[i>>1] & 0xF0) >> 4;
+                }
+                $(document.createElementNS(xmlns, 'line')).attr({
+                    x1:x, y1:30, x2:x, y2:260, stroke:'black', 'stroke-dasharray':2
+                }).appendTo(svg);
+
+                $(document.createElementNS(xmlns, 'text')).attr({
+                    x:x+20, y:115, class:'centerAlign', fill:'black', 'font-size':12
+                }).text(val.toString(16).toUpperCase()).appendTo(svg);
+
+                x += 40;
+            }
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x, y1:30, x2:x, y2:260, stroke:'black', 'stroke-dasharray':2
+            }).appendTo(svg);
+            console.log(`sx = ${sx}, sy = ${sy}, x = ${x}, y = ${y}`);
+
+            // frame color : sync(Lime), Type(LightSalmon), Command(Violet), Chip Select(RoyalBlue), Data(Gainsboro), opcode(xxx), shift(xxx)
+            const frame_color = ['red', 'Lime', 'LightSalmon', 'yellow', 'Violet', 'RoyalBlue', 'Gainsboro', 'blue'];
+
+            // clock 생성 : Low(10) + High(10), ...
+            x = sx + 20;
+            n = bytes.length * 8;             // clock의 개수.
+            var half = parseInt(clock/2);
+
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x, y1:y+h, x2:x+(n*clock), y2:y+h, stroke:'black', 'stroke-dasharray':half
+            }).appendTo(svg);
+
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x+half, y1:y, x2:x+half+(n*clock), y2:y, stroke:'black', 'stroke-dasharray':half
+            }).appendTo(svg);
+
+            var idx = 0;
+            var cmd = bytes[idx];
+
+            for(var i=0; i<n; i++, idx++) {        // bit count.
+                if( ((cmd == 0xA0) || (cmd == 0xA1) || (cmd == 0xA2) || (cmd == 0xA3)) && (idx == 24) ) {
+                    cmd = bytes[parseInt(idx/8)];
+                    idx = 0;
+                } else if( ((cmd == 0xA4) || (cmd == 0xA5) || (cmd == 0xA7)) && (idx == 32) ) {
+                    cmd = bytes[parseInt(idx/8)];
+                    idx = 0;
+                } else if( ((cmd == 0xA6) || (cmd == 0xA9) || (cmd == 0xAF)) && (idx == 40) ) {
+                    cmd = bytes[parseInt(idx/8)];
+                    idx = 0;
+                } else if( (cmd == 0xA8) && (idx == 48) ) {
+                    cmd = bytes[parseInt(idx/8)];
+                    idx = 0;
+                }
+
+                // SCLK draw
+                $(document.createElementNS(xmlns, 'line')).attr({
+                    x1:x, y1:y, x2:x, y2:y+h, stroke:'black'
+                }).appendTo(svg);
+
+                $(document.createElementNS(xmlns, 'line')).attr({
+                    x1:x+half, y1:y+h, x2:x+half, y2:(y+5), stroke:'black', 'marker-end':'url(#Triangle)'
+                }).appendTo(svg);
+
+                if( idx < 4 ) {                   // sync
+                    color = frame_color[0];
+                } else if( idx < 8 ) {            // cmd
+                    color = frame_color[1];
+                } else {
+                    if( (cmd == 0xA0) || (cmd == 0xA1) || (cmd == 0xA2) || (cmd == 0xA3) ) {    // no data command
+                        if( idx < 16 ) {                  // operate
+                            color = frame_color[5];
+                        } else if( idx < 32 ) {           // shift
+                            color = frame_color[6];
+                        }
+                    } else if( cmd == 0xA4 ) {
+                        if( idx < 12 ) {                  // ctrl
+                            color = frame_color[4];
+                        } else if( idx < 16 ) {           // dummy
+                            color = 'white';
+                        } else if( idx < 24 ) {           // operate
+                            color = frame_color[5];
+                        } else if( idx < 40 ) {           // shift
+                            color = frame_color[6];
+                        }
+                    } else if( (cmd == 0xA5) || (cmd == 0xA7) ) {
+                        if( idx < 12 ) {                  // chip
+                            color = frame_color[3];
+                        } else if( idx < 16 ) {           // ctrl
+                            color = frame_color[4];
+                        } else if( idx < 24 ) {           // operate
+                            color = frame_color[5];
+                        } else if( idx < 40 ) {           // shift
+                            color = frame_color[6];
+                        }
+                    } else if( cmd == 0xA6 ) {
+                        if( idx < 12 ) {                  // chip
+                            color = frame_color[3];
+                        } else if( idx < 20 ) {           // ctrl
+                            color = frame_color[4];
+                        } else if( idx < 24 ) {           // dummy
+                            color = 'white';
+                        } else if( idx < 32 ) {           // operate
+                            color = frame_color[5];
+                        } else if( idx < 48 ) {           // shift
+                            color = frame_color[6];
+                        }
+                    } else if( cmd == 0xA8 ) {
+                        if( idx < 24 ) {                  // chip
+                            color = frame_color[3];
+                        } else if( idx < 28 ) {           // ctrl
+                            color = frame_color[4];
+                        } else if( idx < 32 ) {           // dummy
+                            color = 'white';
+                        } else if( idx < 40 ) {           // operate
+                            color = frame_color[5];
+                        } else if( idx < 56 ) {           // shift
+                            color = frame_color[6];
+                        }
+                    } else if( cmd == 0xA9 ) {
+                        if( idx < 20 ) {                  // level
+                            color = frame_color[4];
+                        } else if( idx < 24 ) {           // dummy
+                            color = 'white';
+                        } else if( idx < 32 ) {           // operate
+                            color = frame_color[5];
+                        } else if( idx < 48 ) {           // shift
+                            color = frame_color[6];
+                        }
+                    } else if( cmd == 0xAE ) {
+                        if( idx < 12 ) {                  // ctrl
+                            color = frame_color[4];
+                        } else if( idx < 16 ) {           // dummy
+                            color = 'white';
+                        } else if( idx < 24 ) {           // operate
+                            color = frame_color[5];
+                        } else if( idx < 40 ) {           // shift
+                            color = frame_color[6];
+                        }
+                    } else if( cmd == 0xAF ) {
+                        if( idx < 24 ) {                  // chip
+                            color = frame_color[4];
+                        } else if( idx < 32 ) {           // operate
+                            color = frame_color[5];
+                        } else if( idx < 48 ) {           // shift
+                            color = frame_color[6];
+                        }
+                    }
+                }
+
+                // SDO Data draw
+                $(document.createElementNS(xmlns, 'rect')).attr({
+                    x:x, y:y+lineOfs, width:10, height:50, class:'blackStroke', fill:color
+                }).appendTo(svg);
+
+                $(document.createElementNS(xmlns, 'text')).attr({
+                    x:x+5, y:y+lineOfs+25, class:'centerAlign', fill:'black', 'font-size':12
+                }).text(((bytes[parseInt(i/8)] & (1<<(7-(i%8)))) == 0 ) ? '0':'1').appendTo(svg);
+
+//                console.log(`byte : ${(bytes[parseInt(i/8)] & (1<<(7-(i%8)))) == 0}`);
+                x += clock;
+            }
+            y = y + lineOfs;
+            // CSN line draw.
+            x = sx + 20;
+            y = y + lineOfs;
+            length = n * clock;
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x-5, y1:y, x2:x, y2:y+50, class:'blackStroke'
+            }).appendTo(svg);
+
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x, y1:y+50, x2:x+length, y2:y+50, class:'blackStroke'
+            }).appendTo(svg);
+
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x+length, y1:y+50, x2:x+length+5, y2:y, class:'blackStroke'
+            }).appendTo(svg);
+
+            // time line & text draw.
+            $(document.createElementNS(xmlns, 'text')).attr({
+                x:x+(length/2), y:y+17, class:'centerAlign', fill:'black', 'font-size':10
+            }).text(((length * 4) < 1000) ? `${(length * 4)} ns` : `${(length * 4) / 1000} us`).appendTo(svg);
+
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x+(length/2), y1:y+25, x2:x, y2:y+25, class:'blueStroke', 'marker-end':'url(#Triangle)'
+            }).appendTo(svg);
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x+(length/2), y1:y+25, x2:x+length, y2:y+25, class:'blueStroke', 'marker-end':'url(#Triangle)'
+            }).appendTo(svg);
+
+
+            x = sx  + 20+ length;
+
+
+            n = 5;              // 
+            length = n * clock;
+            // high line draw : 1-clock(20pixel) 
+            y = sy;
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x, y1:y, x2:x+length, y2:y, class:'blackStroke'
+            }).appendTo(svg);
+
+            // SDO line draw.
+            y = y + lineOfs;
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x, y1:y+(h/2), x2:x+length, y2:y+(h/2), class:'blackStroke'
+            }).appendTo(svg);
+
+            // CSN line draw.
+            y = y + lineOfs;
+            $(document.createElementNS(xmlns, 'line')).attr({
+                x1:x+5, y1:y, x2:x+length, y2:y, class:'blackStroke'
+            }).appendTo(svg);
+        }
+    </script>
+</body>
+</html>
+
+
